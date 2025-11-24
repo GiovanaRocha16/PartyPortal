@@ -1,0 +1,32 @@
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# === Virtual env ===
+env/
+venv/
+.venv/
+
+# === IDE ===
+.vscode/
+.idea/
+
+# === Sistema operacional ===
+.DS_Store
+Thumbs.db
+
+# === Banco de dados local ===
+*.db
+
+# === Logs ===
+*.log
+
+# === Python tools ===
+*.egg-info/
+dist/
+build/
+
+# === Arquivos temporários ===
+*.tmp

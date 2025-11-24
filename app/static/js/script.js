@@ -3,7 +3,7 @@ function iniciarJogo(nome) {
         case "Clique Rápido":
             alert("🎯 Clique rápido em construção!");
             break;
-        case "Número Secreto":
+        case "Número Secreto"
             alert("💭 Número secreto em construção!");
             break;
         case "Jogo da Velha":

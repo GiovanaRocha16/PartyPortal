@@ -23,43 +23,43 @@
         <div class="game-card">
             <h2>🎯 Clique Rápido</h2>
             <p>Clique o máximo de alvos que conseguir em 10 segundos!</p>
-            <button onclick="iniciarJogo('Clique Rápido')">Jogar</button>
+            <button onclick="window.location.href='/clique_rapido'">Jogar</button>
         </div>
 
         <div class="game-card">
             <h2>💭 Número Secreto</h2>
             <p>Adivinhe o número misterioso com dicas “maior” ou “menor”.</p>
-            <button onclick="iniciarJogo('Número Secreto')">Jogar</button>
+            <button onclick="window.location.href='/numero_secreto'">Jogar</button>
         </div>
 
         <div class="game-card">
             <h2>🧠 Jogo da Velha</h2>
-            <p>Clássico! Vença o computador ou desafie um amigo.</p>
-            <button onclick="iniciarJogo('Jogo da Velha')">Jogar</button>
+            <p>Clássico! Vença o computador e prove ser o melhor!</p>
+            <button onclick="window.location.href='/jogo_da_velha'">Jogar</button>
         </div>
 
         <div class="game-card">
             <h2>🐸 Caça ao Emoji</h2>
             <p>Encontre o emoji certo entre vários que aparecem!</p>
-            <button onclick="iniciarJogo('Caça ao Emoji')">Jogar</button>
+            <button onclick="window.location.href='/caca_emoji'">Jogar</button>
         </div>
 
         <div class="game-card">
             <h2>🃏 Mini Blackjack</h2>
             <p>Tente chegar o mais perto possível do 21!</p>
-            <button onclick="iniciarJogo('Mini Blackjack')">Jogar</button>
+            <button onclick="window.location.href='/mini_black_jack'">Jogar</button>
         </div>
         
         <div class="game-card">
             <h2>✂️ Pedra, Papel e Tesoura</h2>
             <p>Escolha entre pedra, papel e tesoura e veja se ganhou!</p>
-            <button onclick="iniciarJogo('Pedra, Papel e Tesoura')">Jogar</button>
+            <button onclick="window.location.href='/pedra_papel_tesoura'">Jogar</button>
         </div>
 
         <div class="game-card">
             <h2>🎰 Caça-Níquel</h2>
             <p>Puxe a alavanca para jogar e teste sua sorte!</p>
-            <button onclick="iniciarJogo('Caça-Níquel')">Jogar</button>
+            <button onclick="window.location.href='/caça_níquel'">Jogar</button>
         </div>
 
         <div class="game-card">
