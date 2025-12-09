@@ -1,97 +1,35 @@
-import sqlite3
-import os
-from app.config import DB_NAME
-from bottle import request
+from app.models.model import Model
 
-def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            is_admin INTEGER DEFAULT 0
-        )
-    """)
-    conn.commit()
-    conn.close()
+class User(Model):
+    table = "users"
+    fields = ["id", "username", "password", "is_admin"]
 
-init_db()
+    # ----------------- Metodos de classe -----------------
+    @classmethod
+    def authenticate(cls, username, password):
+        query = "SELECT * FROM users WHERE username=? AND password=?"
+        row = cls.db.fetch_one(query, (username, password))
+        return cls.from_row(row)
 
+    @classmethod
+    def exists(cls, username):
+        query = "SELECT id FROM users WHERE username=?"
+        row = cls.db.fetch_one(query, (username,))
+        return row is not None
 
-class User:
+    @classmethod
+    def set_admin(cls, user_id, is_admin=True):
+        cls.update(user_id, is_admin=int(is_admin))
 
-    @staticmethod
-    def create(username, password):
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            INSERT INTO users (username, password)
-            VALUES (?, ?)
-        """, (username, password))
-
-        conn.commit()
-        conn.close()
-
-    @staticmethod
-    def authenticate(username, password):
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            SELECT * FROM users
-            WHERE username = ? AND password = ?
-        """, (username, password))
-
-        user = cursor.fetchone()
-        conn.close()
-        return user
+    @classmethod
+    def get_by_username(cls, username):
+        query = "SELECT * FROM users WHERE username=?"
+        row = cls.db.fetch_one(query, (username,))
+        return cls.from_row(row)
     
-    @staticmethod
-    def all():
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, username FROM users ORDER BY id ASC")
-        data = cursor.fetchall()
-        conn.close()
-        return data
-
-    @staticmethod
-    def get(user_id):
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, username FROM users WHERE id = ?", (user_id,))
-        data = cursor.fetchone()
-        conn.close()
-        return data
-
-    @staticmethod
-    def update(user_id, username, password=None):
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-
-        if password:
-            cursor.execute("""
-                UPDATE users SET username=?, password=? WHERE id=?
-            """, (username, password, user_id))
-        else:
-            cursor.execute("""
-                UPDATE users SET username=? WHERE id=?
-            """, (username, user_id))
-
-        conn.commit()
-        conn.close()
-
-    @staticmethod
-    def delete(user_id):
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM users WHERE id=?", (user_id,))
-        conn.commit()
-        conn.close()
-    def usuario_admin():
-        return request.get_cookie("is_admin") == "1"
-
+    @classmethod
+    def get_by_id(cls, user_id):
+        query = "SELECT * FROM users WHERE id=?"
+        row = cls.db.fetch_one(query, (user_id,))
+        return cls.from_row(row)
 

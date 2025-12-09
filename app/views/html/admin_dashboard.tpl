@@ -7,6 +7,7 @@
         body { font-family: Arial; background:#f3f3f3; padding:30px; }
         h1 { text-align:center; margin-bottom:40px; }
         h2 { margin-top:40px; }
+        h3 { margin-top:20px; }
         table {
             width: 100%;
             background:white;
@@ -39,7 +40,7 @@
     <h1>📊 Painel Administrativo</h1>
 
     <!-- ============================ USERS ============================ -->
-    <h2>🧑‍💻 Logins (Users)</h2>
+    <h2>🧑‍💻 Usuários</h2>
 
     <table>
         <tr>
@@ -50,22 +51,18 @@
 
         % for u in usuarios:
         <tr>
-            <td>{{u[0]}}</td>
-
+            <td>{{u['id']}}</td>
             <td>
-                <!-- Form para editar usuário -->
                 <form action="/admin/user/update" method="POST">
-                    <input type="hidden" name="id" value="{{!u[0]}}">
-                    <input type="text" name="username" value="{{!u[1]}}" required>
+                    <input type="hidden" name="id" value="{{u['id']}}">
+                    <input type="text" name="username" value="{{u['username']}}" required>
                     <input type="password" name="password" placeholder="Nova senha (opcional)">
                     <button type="submit" class="update">Salvar</button>
                 </form>
             </td>
-
             <td>
-                <!-- Excluir usuário -->
                 <form action="/admin/user/delete" method="POST">
-                    <input type="hidden" name="id" value="{{!u[0]}}">
+                    <input type="hidden" name="id" value="{{u['id']}}">
                     <button type="submit" class="delete"
                         onclick="return confirm('Tem certeza que deseja apagar este usuário?')">
                         Excluir
@@ -76,7 +73,6 @@
         % end
     </table>
 
-    <!-- Criar novo usuário -->
     <h3>➕ Criar Novo Usuário</h3>
     <form action="/admin/user/add" method="POST">
         <input type="text" name="username" placeholder="Novo usuário" required>
@@ -84,9 +80,8 @@
         <button type="submit" class="add">Criar</button>
     </form>
 
-
     <!-- ============================ PLAYERS ============================ -->
-    <h2>🎮 Jogadores (Players)</h2>
+    <h2>🎮 Jogadores</h2>
 
     <table>
         <tr>
@@ -98,14 +93,12 @@
 
         % for p in players:
         <tr>
-            <td>{{p[0]}}</td>
-            <td>{{p[1]}}</td>
-            <td>{{p[2]}}</td>
-
+            <td>{{p.id}}</td>
+            <td>{{p.user_id}}</td>
+            <td>{{p.score}}</td>
             <td>
-                <!-- Excluir player -->
                 <form action="/players/delete" method="POST">
-                    <input type="hidden" name="id" value="{{!p[0]}}">
+                    <input type="hidden" name="id" value="{{p.id}}">
                     <button type="submit" class="delete"
                         onclick="return confirm('Tem certeza que deseja apagar este player?')">
                         Excluir

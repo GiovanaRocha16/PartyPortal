@@ -1,80 +1,36 @@
-from app.models.player import Player
+# route.py (refatorado BMVC/POO, lógica completa mantida)
+from bottle import Bottle, request, static_file, redirect, template, response, BaseRequest, run
 from app.controllers.application import Application
-from app.models.user import User
-import uuid
-from bottle import Bottle, route, run, request, static_file, redirect, template, response, BaseRequest
-import random
-import json
-import time
-import sqlite3
-from app.config import DB_NAME
+from app.controllers.user_controller import UserController
+from app.controllers.player_controller import PlayerController
+from app.controllers.game_controller import GameController
+from app.controllers.session_manager import SessionManager
 
 BaseRequest.MEMFILE_MAX = 1024 * 1024
 
-sessions = {}
-
-def usuario_logado():
-    sid = request.get_cookie("session_id")
-    return sid in sessions
-
-def get_user_id():
-    sid = request.get_cookie("session_id")
-    sess = sessions.get(sid)
-    return sess["id"] if sess else None
-
-def is_admin():
-    sid = request.get_cookie("session_id")
-    sess = sessions.get(sid)
-    return sess and sess.get("is_admin") == 1
-
+# -------------------- APP & CONTROLLERS --------------------
 app = Bottle()
 ctl = Application()
+user_ctrl = UserController()
+player_ctrl = PlayerController()
+game_ctrl = GameController()
+session_ctrl = SessionManager()
 
-@app.hook('before_request')
-def proteger_site():
-    rota = request.path
-
-    rotas_livres = ['/login', '/register', '/static']
-
-    if not usuario_logado() and not any(rota.startswith(r) for r in rotas_livres):
-        redirect('/login')
-
-@app.route('/players')
-def list_players():
-    if not usuario_logado():
-        redirect('/login')
-
-    players = Player.all()
-    return template('app/views/html/players', players=players)
-
-@app.post('/players/add')
-def add_player():
-    name = request.forms.get('name')
-    Player.create(name)
-    redirect('/players')
-
-@app.post('/players/update')
-def update_player():
-    player_id = int(request.forms.get('id'))
-    name = request.forms.get('name')
-    score = int(request.forms.get('score') or 0)
-    Player.update(player_id, name, score)
-    redirect('/players')
-
-@app.post('/players/delete')
-def delete_player():
-    player_id = int(request.forms.get('id'))
-    Player.delete(player_id)
-    redirect('/players')
-
+# -------------------- STATIC FILES --------------------
 @app.route('/static/<filepath:path>')
 def serve_static(filepath):
     return static_file(filepath, root='./app/static')
 
+# -------------------- HOME --------------------
 @app.route('/')
-def action_home(info=None):
+@app.route('/home')
+def home():
+    user = ctl.current_user()
+    if not user:
+        redirect("/login")
     return ctl.render('home')
 
+# -------------------- LOGIN / REGISTER --------------------
 @app.route('/login')
 def login_view():
     return template('app/views/html/login', erro=None)
@@ -83,19 +39,19 @@ def login_view():
 def login():
     username = request.forms.get('username')
     password = request.forms.get('password')
+    result = user_ctrl.login(username, password)
+    if result.get("error"):
+        return template('app/views/html/login', erro=result["error"])
 
-    user = User.authenticate(username, password)
+    user = result["user"]
+    sid = session_ctrl.create_session(user)
+    response.set_cookie("session_id", sid, path="/")
+    redirect(result.get("redirect", "/home"))
 
-    if user:
-        if Player.get_by_user(user[0]) is None:
-            Player.create_for_user(user[0], user[1])
-
-        session_id = str(uuid.uuid4())
-        sessions[session_id] = {"id": user[0], "is_admin": user[3]}
-        response.set_cookie("session_id", session_id, path="/")
-        redirect('/')
-    else:
-        return template('app/views/html/login', erro="Usuário ou senha inválidos")
+@app.route('/logout')
+def logout():
+    ctl.logout_user()
+    redirect('/login')
 
 @app.route('/register')
 def register_view():
@@ -105,446 +61,148 @@ def register_view():
 def register():
     username = request.forms.get('username')
     password = request.forms.get('password')
-
     if not username or not password:
         return template('app/views/html/register', erro="Usuário e senha são obrigatórios")
 
-    User.create(username, password)
-    return redirect('/login')
+    result = user_ctrl.register({"username": username, "password": password})
+    if result.get("error"):
+        return template('app/views/html/register', erro=result["error"])
+    redirect('/login')
 
-@app.route('/usuarios')
-def listar_usuarios():
-    if not usuario_logado():
-        redirect('/login')
+# -------------------- PLAYERS --------------------
+@app.route('/players')
+def list_players():
+    user = ctl.current_user()
+    if not user:
+        redirect("/login")
+    players = player_ctrl.list_players()
+    return template('app/views/html/players', players=players)
 
-    conn = sqlite3.connect(DB_NAME)
+@app.post('/players/add')
+def add_player():
+    user = ctl.current_user()
+    if not user:
+        redirect("/login")
+    player_ctrl.create_player_for_user(user["id"], f"Player{user['id']}")
+    redirect('/players')
 
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT users.id, users.username, COALESCE(players.score, 0)
-        FROM users
-        LEFT JOIN players ON players.user_id = users.id
-        ORDER BY COALESCE(players.score,0) DESC
-    """)
-    usuarios = cursor.fetchall()
-    conn.close()
+@app.post('/players/update')
+def update_player():
+    user = ctl.current_user()
+    if not user:
+        redirect("/login")
+    player_id = int(request.forms.get('id'))
+    score = int(request.forms.get('score') or 0)
+    player_ctrl.update_score(player_id, score)
+    redirect('/players')
 
-    return template("app/views/html/usuarios", usuarios=usuarios)
+@app.post('/players/delete')
+def delete_player():
+    user = ctl.current_user()
+    if not user:
+        redirect("/login")
+    player_id = int(request.forms.get('id'))
+    player_ctrl.delete_player(player_id)
+    redirect('/players')
 
+# -------------------- ADMIN --------------------
 @app.route('/admin/dashboard')
 def admin_dashboard():
-    if not usuario_logado():
-        return redirect('/login')
-
-    if not is_admin():
-        return "Acesso negado (admin only)", 403
-
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT id, username FROM users ORDER BY id ASC")
-    usuarios = cursor.fetchall()
-
-    cursor.execute("""
-        SELECT players.id, users.username, players.score
-        FROM players
-        JOIN users ON users.id = players.user_id
-        ORDER BY players.id ASC
-    """)
-    players = cursor.fetchall()
-
-    cursor.execute("""
-        SELECT users.username, players.score
-        FROM players
-        JOIN users ON users.id = players.user_id
-        ORDER BY players.score DESC
-    """)
-    ranking = cursor.fetchall()
-
-    conn.close()
-
-    return template("app/views/html/admin_dashboard",
-        usuarios=usuarios,
-        players=players,
-        ranking=ranking)
+    if not ctl.check_permission(admin_required=True):
+        return ctl.access_denied()
+    usuarios = user_ctrl.list_users()
+    players = player_ctrl.list_players()
+    return template('app/views/html/admin_dashboard', usuarios=usuarios, players=players)
 
 @app.post('/admin/user/add')
-def add_user():
-    if not is_admin():
-        return "Acesso negado (admin only)", 403
-    
+def admin_add_user():
+    if not ctl.check_permission(admin_required=True):
+        return ctl.access_denied()
     username = request.forms.get('username')
     password = request.forms.get('password')
-
-    if not username or not password:
-        redirect('/admin/dashboard')
-
-    User.create(username, password)
+    result = user_ctrl.register({"username": username, "password": password})
+    if result.get("error"):
+        usuarios = user_ctrl.list_users()
+        players = player_ctrl.list_players()
+        return template("app/views/html/admin_dashboard", usuarios=usuarios, players=players, erro=result["error"])
     redirect('/admin/dashboard')
-
 
 @app.post('/admin/user/update')
 def admin_update_user():
-    if not is_admin():
-        return "Acesso negado (admin only)", 403
-    
+    if not ctl.check_permission(admin_required=True):
+        return ctl.access_denied()
     user_id = int(request.forms.get('id'))
     username = request.forms.get('username')
     password = request.forms.get('password')
-
-    User.update(user_id, username, password)
+    user_ctrl.update_user(user_id, username, password)
     redirect('/admin/dashboard')
-
 
 @app.post('/admin/user/delete')
 def admin_delete_user():
-    if not is_admin():
-        return "Acesso negado (admin only)", 403
-    
+    if not ctl.check_permission(admin_required=True):
+        return ctl.access_denied()
     user_id = int(request.forms.get('id'))
-    User.delete(user_id)
-
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM players WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
-
+    user_ctrl.delete_user(user_id)
+    player_ctrl.delete_player_by_user_id(user_id)
     redirect('/admin/dashboard')
 
-@app.route('/confeiteiro', method=['GET', 'POST'])
+@app.route('/admin/sessions')
+def admin_sessions():
+    if not ctl.check_permission(admin_required=True):
+        return ctl.access_denied()
+    sessions = session_ctrl.list_sessions()
+    return template('app/views/html/admin_sessions', sessions=sessions)
+
+@app.post('/admin/session/delete')
+def admin_delete_session():
+    if not ctl.check_permission(admin_required=True):
+        return ctl.access_denied()
+    session_id = request.forms.get('session_id')
+    session_ctrl.delete_session(session_id)
+    redirect('/admin/dashboard')
+
+# -------------------- GAMES --------------------
+def handle_game_route(route_func, template_name):
+    user_id = ctl.get_user_id()
+    state = route_func(user_id, request.forms)
+    return template(template_name, **state)
+
+@app.route('/confeiteiro', method=['GET','POST'])
 def confeiteiro():
-    if request.method == 'POST':
-        ing1 = request.forms.get('ing1')
-        ing2 = request.forms.get('ing2')
-        ing3 = request.forms.get('ing3')
-        nome_jogador = request.forms.get('nome_jogador')
+    return handle_game_route(game_ctrl.confeiteiro_route, 'app/views/html/confeiteiro')
 
-        receitas = {
-            ('Chocolate', 'Morango', 'Leite'): "Um bolo de morango delicioso! 🍰",
-            ('Limão', 'Leite', 'Morango'): "Um mousse cítrico refrescante! 🍋🍓",
-            ('Pimenta', 'Alho', 'Limão'): "🤢 Uma torta explosiva de alho e pimenta!",
-            ('Chocolate', 'Leite', 'Pimenta'): "🔥 Um chocolate picante ousado!",
-        }
-
-        chave = (ing1, ing2, ing3)
-        resultado = receitas.get(chave, f"🍽️ Uma criação misteriosa de {ing1}, {ing2} e {ing3}!")
-
-        if "🤢" not in resultado:
-            user_id = get_user_id()
-            Player.add_score(user_id, 5)
-
-
-        return template('app/views/html/confeiteiro', resultado=resultado)
-    else:
-        return template('app/views/html/confeiteiro', resultado=None)
-
-@app.route('/campo_minado', method=['GET', 'POST'])
+@app.route('/campo_minado', method=['GET','POST'])
 def campo_minado():
-    bomba = random.randint(1, 9)
-    resultado = None
-    clicados = []
+    return handle_game_route(game_ctrl.campo_minado_route, 'app/views/html/campo_minado')
 
-    if request.method == 'POST':
-        escolha = int(request.forms.get('escolha'))
-        clicados = request.forms.get('clicados', '')
-        clicados = [int(c) for c in clicados.split(',') if c]
-        nome_jogador = request.forms.get("nome_jogador")
+@app.route('/caca_niquel', method=['GET','POST'])
+def caca_niquel():
+    return handle_game_route(game_ctrl.caca_niquel_route, 'app/views/html/caca_niquel')
 
-        if escolha not in clicados:
-            clicados.append(escolha)
+@app.route('/pedra_papel_tesoura', method=['GET','POST'])
+def ppt():
+    return handle_game_route(game_ctrl.ppt_route, 'app/views/html/pedra_papel_tesoura')
 
-        if escolha == bomba:
-            resultado = f"💥 BOOM! Você pisou na bomba!"
-        elif len(clicados) == 8:
-            resultado = "🏆 Parabéns! Você venceu sem explodir!"
-            user_id = get_user_id()
-            Player.add_score(user_id, 10)
-
-        else:
-            resultado = f"✅ {len(clicados)} tentativas seguras!"
-
-    return template('app/views/html/campo_minado',
-                    resultado=resultado,
-                    clicados=clicados,
-                    bomba=bomba)
-
-@app.route('/caça_níquel', method=['GET', 'POST'])
-def caça_níquel():
-    resultado = None
-    reels = ["🍒", "🍋", "🔔", "🍉", "⭐", "7️⃣"]
-    slots = ["❓", "❓", "❓"]
-
-    if request.method == 'POST':
-        slots = [random.choice(reels) for _ in range(3)]
-        nome_jogador = request.forms.get("nome_jogador")
-        if slots[0] == slots[1] == slots[2]:
-            resultado = f"🏆 Parabéns! Você ganhou: {' '.join(slots)}"
-            user_id = get_user_id()
-            Player.add_score(user_id, 5)
-
-        else:
-            resultado = f"😢 Tente de novo: {' '.join(slots)}"
-
-    return template('app/views/html/caca_niquel', slots=slots, resultado=resultado)
-
-@app.route('/pedra_papel_tesoura', method=['GET', 'POST'])
-def pedra_papel_tesoura():
-    if request.method == 'POST':
-        escolha = request.forms.get('escolha')
-        nome_jogador = request.forms.get("nome_jogador")
-        opcoes = ["Pedra", "Papel", "Tesoura"]
-        bot = random.choice(opcoes)
-
-        if escolha == bot:
-            resultado = "🤝 Empate!"
-        elif (escolha == "Pedra" and bot == "Tesoura") or \
-             (escolha == "Tesoura" and bot == "Papel") or \
-             (escolha == "Papel" and bot == "Pedra"):
-            resultado = "🎉 Você ganhou!"
-            user_id = get_user_id()
-            Player.add_score(user_id, 5)
-
-        else:
-            resultado = "😢 Você perdeu!"
-
-        return template("app/views/html/pedra_papel_tesoura",
-                        escolha=escolha, bot=bot, resultado=resultado)
-
-    return template("app/views/html/pedra_papel_tesoura",
-                    escolha=None, bot=None, resultado=None)
-
-@app.route('/mini_black_jack', method=['GET', 'POST'])
+@app.route('/mini_black_jack', method=['GET','POST'])
 def blackjack():
-    cartas = [1,2,3,4,5,6,7,8,9,10]
+    return handle_game_route(game_ctrl.blackjack_route, 'app/views/html/mini_black_jack')
 
-    if request.method == 'GET':
-        jogador = [random.choice(cartas), random.choice(cartas)]
-        bot = [random.choice(cartas), random.choice(cartas)]
-        return template("app/views/html/mini_black_jack",
-                        jogador=jogador, bot=bot, fim=False)
-
-    acao = request.forms.get("acao")
-    jogador = json.loads(request.forms.get("jogador"))
-    bot = json.loads(request.forms.get("bot"))
-    nome_jogador = request.forms.get("nome_jogador")
-
-    if acao == "comprar":
-        jogador.append(random.choice(cartas))
-        if sum(jogador) > 21:
-            return template("app/views/html/mini_black_jack",
-                            jogador=jogador,
-                            bot=bot,
-                            fim=True,
-                            resultado="💥 Você estourou! Derrota!")
-        return template("app/views/html/mini_black_jack",
-                        jogador=jogador, bot=bot, fim=False)
-
-    if acao == "parar":
-        while sum(bot) < 17:
-            bot.append(random.choice(cartas))
-
-        soma_jog = sum(jogador)
-        soma_bot = sum(bot)
-
-        if soma_bot > 21:
-            resultado = "🎉 O bot estourou! Você venceu!"
-            user_id = get_user_id()
-            Player.add_score(user_id, 10)
-
-        elif soma_jog > soma_bot:
-            resultado = "🎉 Você venceu!"
-            user_id = get_user_id()
-            Player.add_score(user_id, 10)
-
-        elif soma_jog < soma_bot:
-            resultado = "😢 Você perdeu!"
-        else:
-            resultado = "🤝 Empate!"
-
-        return template("app/views/html/mini_black_jack",
-                        jogador=jogador,
-                        bot=bot,
-                        fim=True,
-                        resultado=resultado)
-
-@app.route('/jogo_da_velha', method=['GET', 'POST'])
+@app.route('/jogo_da_velha', method=['GET','POST'])
 def jogo_da_velha():
-    if request.method == 'GET':
-        tabuleiro = ["-"] * 9
-        return template("app/views/html/jogo_da_velha",
-                        tabuleiro=tabuleiro,
-                        mensagem="Sua vez! Você é o X")
+    return handle_game_route(game_ctrl.jogo_da_velha_route, 'app/views/html/jogo_da_velha')
 
-    tabuleiro = request.forms.get("tabuleiro").split(",")
-    jogada = int(request.forms.get("jogada"))
-    nome_jogador = request.forms.get("nome_jogador")
-
-    if tabuleiro[jogada] != "-":
-        return template("app/views/html/jogo_da_velha",
-                        tabuleiro=tabuleiro,
-                        mensagem="Escolha uma casa vazia!")
-
-    tabuleiro[jogada] = "X"
-    vitorias = [(0,1,2),(3,4,5),(6,7,8),(0,3,6),(1,4,7),(2,5,8),(0,4,8),(2,4,6)]
-
-    for a,b,c in vitorias:
-        if tabuleiro[a] == tabuleiro[b] == tabuleiro[c] == "X":
-            user_id = get_user_id()
-            Player.add_score(user_id, 10)
-
-            return template("app/views/html/jogo_da_velha",
-                            tabuleiro=tabuleiro,
-                            mensagem="🎉 Você venceu!")
-
-    livres = [i for i,t in enumerate(tabuleiro) if t == "-"]
-    if not livres:
-        return template("app/views/html/jogo_da_velha",
-                        tabuleiro=tabuleiro,
-                        mensagem="🤝 Empate!")
-
-    bot_joga = random.choice(livres)
-    tabuleiro[bot_joga] = "O"
-
-    for a,b,c in vitorias:
-        if tabuleiro[a] == tabuleiro[b] == tabuleiro[c] == "O":
-            return template("app/views/html/jogo_da_velha",
-                            tabuleiro=tabuleiro,
-                            mensagem="😢 O bot venceu!")
-
-    return template("app/views/html/jogo_da_velha",
-                    tabuleiro=tabuleiro,
-                    mensagem="Sua vez! Você é o X")
-
-@app.route('/caca_emoji', method=['GET', 'POST'])
+@app.route('/caca_emoji', method=['GET','POST'])
 def caca_emoji():
-    if request.method == "GET":
-        alvo = "🟢"
-        errado = "🟩"
-        erros = 0
-        opcoes = [errado] * 12
-        alvo_idx = random.randint(0, 11)
-        opcoes[alvo_idx] = alvo
-        return template("app/views/html/caca_emoji",
-                        opcoes=opcoes,
-                        alvo_idx=alvo_idx,
-                        erros=erros,
-                        mensagem="Encontre o círculo verde! 🟢",
-                        fim=False)
+    return handle_game_route(game_ctrl.caca_emoji_route, 'app/views/html/caca_emoji')
 
-    escolha_idx = int(request.forms.get("escolha_idx"))
-    alvo_idx = int(request.forms.get("alvo_idx"))
-    erros = int(request.forms.get("erros"))
-    nome_jogador = request.forms.get("nome_jogador")
-
-    alvo = "🟢"
-    errado = "🟩"
-    opcoes = [errado] * 12
-    opcoes[alvo_idx] = alvo
-
-    if escolha_idx == alvo_idx:
-        user_id = get_user_id()
-        Player.add_score(user_id, 10)
-
-        return template("app/views/html/caca_emoji",
-                        opcoes=opcoes,
-                        alvo_idx=alvo_idx,
-                        erros=erros,
-                        mensagem="🎉 Você encontrou o emoji escondido!",
-                        fim=True)
-
-    erros += 1
-    if erros >= 3:
-        return template("app/views/html/caca_emoji",
-                        opcoes=opcoes,
-                        alvo_idx=alvo_idx,
-                        erros=erros,
-                        mensagem="❌ Você errou 3 vezes! Fim de jogo!",
-                        fim=True)
-
-    return template("app/views/html/caca_emoji",
-                    opcoes=opcoes,
-                    alvo_idx=alvo_idx,
-                    erros=erros,
-                    mensagem=f"❌ Não é esse! ({erros}/3 erros)",
-                    fim=False)
-
-@app.route('/numero_secreto', method=['GET', 'POST'])
+@app.route('/numero_secreto', method=['GET','POST'])
 def numero_secreto():
-    if request.method == "GET":
-        numero = random.randint(1, 50)
-        tentativas = 0
-        return template("app/views/html/numero_secreto",
-                        numero=numero,
-                        tentativas=tentativas,
-                        mensagem="Tente adivinhar o número entre 1 e 50!",
-                        fim=False)
+    return handle_game_route(game_ctrl.numero_secreto_route, 'app/views/html/numero_secreto')
 
-    numero = int(request.forms.get("numero"))
-    tentativas = int(request.forms.get("tentativas"))
-    chute = int(request.forms.get("chute"))
-    nome_jogador = request.forms.get("nome_jogador")
-
-    tentativas += 1
-    if chute == numero:
-        user_id = get_user_id()
-        Player.add_score(user_id, 15)
-
-        return template("app/views/html/numero_secreto",
-                        numero=numero,
-                        tentativas=tentativas,
-                        mensagem=f"🎉 Acertou! O número era {numero}.",
-                        fim=True)
-    elif chute < numero:
-        msg = "🔼 O número secreto é MAIOR!"
-    else:
-        msg = "🔽 O número secreto é MENOR!"
-
-    return template("app/views/html/numero_secreto",
-                    numero=numero,
-                    tentativas=tentativas,
-                    mensagem=msg,
-                    fim=False)
-
-clicks_data = {"count": 0, "start": 0}
-
-@app.route('/clique_rapido', method=['GET', 'POST'])
+@app.route('/clique_rapido', method=['GET','POST'])
 def clique_rapido():
-    global clicks_data
-    if request.method == 'GET':
-        return template("app/views/html/clique_rapido",
-                        tempo=None,
-                        cliques=clicks_data["count"])
+    return handle_game_route(game_ctrl.clique_rapido_route, 'app/views/html/clique_rapido')
 
-    nome_jogador = request.forms.get("nome_jogador")
-    if request.forms.get("reset"):
-        clicks_data = {"count": 0, "start": 0}
-        return template("app/views/html/clique_rapido",
-                        tempo=None,
-                        cliques=0)
-
-    if request.forms.get("click"):
-        if clicks_data["count"] == 0:
-            clicks_data["start"] = time.time()
-        clicks_data["count"] += 1
-
-        if clicks_data["count"] >= 10:
-            total = round(time.time() - clicks_data["start"], 2)
-            clicks_data = {"count": 0, "start": 0}
-            user_id = get_user_id()
-            Player.add_score(user_id, 15)
-
-            return template("app/views/html/clique_rapido",
-                            tempo=total,
-                            cliques=0)
-
-        return template("app/views/html/clique_rapido",
-                        tempo=None,
-                        cliques=clicks_data["count"])
-
-    return template("app/views/html/clique_rapido",
-                    tempo=None,
-                    cliques=clicks_data["count"])
-
+# -------------------- RUN --------------------
 if __name__ == '__main__':
     run(app, host='0.0.0.0', port=8080, debug=True)

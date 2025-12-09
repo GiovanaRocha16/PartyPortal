@@ -10,13 +10,19 @@
 <body>
     <header>
         <h1>🎉 Party Portal 🎮</h1>
-        <p>Escolha seu mini-jogo e divirta-se!</p>
-    </header>
 
-<body>
-    <header>
-        <p>Esse site é o nosso trabalho do BMVC. Tem como objetivo ser um ambiente com vários mini-jogos divertidos para desestressar! Esperamos que gostem! 
-        Para esse primeiro nível fizemos a página estática principal com todos os jogos. No futuro, pretendemos adicionar sistema de recorde e login com banco de dados, além, é claro, dos jogos (em python)! </p>
+        % if username:
+            <div class="user-info">
+                <p>
+                    Bem-vindo, <strong>{{ username }}</strong>! |
+                    Pontuação: <strong>{{ user_score }}</strong> |
+                    Posição: <strong>{{ user_position }}</strong>
+                </p>
+                <button onclick="window.location.href='/logout'">Logout</button>
+            </div>
+        % else:
+            <p>Escolha seu mini-jogo e divirta-se!</p>
+        % end
     </header>
 
     <main class="games-container">
@@ -49,7 +55,7 @@
             <p>Tente chegar o mais perto possível do 21!</p>
             <button onclick="window.location.href='/mini_black_jack'">Jogar</button>
         </div>
-        
+
         <div class="game-card">
             <h2>✂️ Pedra, Papel e Tesoura</h2>
             <p>Escolha entre pedra, papel e tesoura e veja se ganhou!</p>
@@ -59,7 +65,7 @@
         <div class="game-card">
             <h2>🎰 Caça-Níquel</h2>
             <p>Puxe a alavanca para jogar e teste sua sorte!</p>
-            <button onclick="window.location.href='/caça_níquel'">Jogar</button>
+            <button onclick="window.location.href='/caca_niquel'">Jogar</button>
         </div>
 
         <div class="game-card">
