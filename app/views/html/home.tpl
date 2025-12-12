@@ -15,10 +15,14 @@
             <div class="user-info">
                 <p>
                     Bem-vindo, <strong>{{ username }}</strong>! |
-                    Pontuação: <strong>{{ user_score }}</strong> |
-                    Posição: <strong>{{ user_position }}</strong>
+                    Pontuação: <strong>{{ user_score if user_score is not None else 0 }}</strong> |
+                    Posição: <strong>{{ user_position if user_position is not None else '-' }}</strong>
                 </p>
-                <button onclick="window.location.href='/logout'">Logout</button>
+
+                <div class="header-actions">
+                    <button onclick="window.location.href='/ranking'">Ranking 🏆</button>
+                    <button onclick="window.location.href='/logout'">Logout</button>
+                </div>
             </div>
         % else:
             <p>Escolha seu mini-jogo e divirta-se!</p>

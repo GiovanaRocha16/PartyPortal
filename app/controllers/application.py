@@ -3,6 +3,7 @@ from app.controllers.user_controller import UserController
 from app.controllers.player_controller import PlayerController
 from app.controllers.game_controller import GameController
 from app.controllers.session_manager import SessionManager
+from app.controllers.websocket_manager import ws_manager
 
 
 class Application:
@@ -60,6 +61,23 @@ class Application:
     def access_denied(self):
         """Renderiza a página de acesso negado"""
         return template('app/views/html/access_denied')
+    
+    # -------------------------------------------
+    # WebSocket
+    # -------------------------------------------
+
+    def get_websocket_handler(self, ws_manager):
+        """Retorna um handler compatível com Bottle usando o ws_manager passado."""
+        def handler():
+            ws = request.environ.get('wsgi.websocket')
+            if not ws:
+                return "WebSocket não suportado."
+            ws_manager.handle_connection(ws)
+            return ""
+        return handler
+
+    def get_app(self):
+        return self.app
 
     # -------------------------------------------
     # SESSÃO

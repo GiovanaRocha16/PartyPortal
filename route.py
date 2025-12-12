@@ -1,10 +1,13 @@
-# route.py (refatorado BMVC/POO, lógica completa mantida)
+
 from bottle import Bottle, request, static_file, redirect, template, response, BaseRequest, run
 from app.controllers.application import Application
 from app.controllers.user_controller import UserController
 from app.controllers.player_controller import PlayerController
 from app.controllers.game_controller import GameController
 from app.controllers.session_manager import SessionManager
+from app.controllers.websocket_manager import ws_manager
+
+import json
 
 BaseRequest.MEMFILE_MAX = 1024 * 1024
 
@@ -203,6 +206,30 @@ def numero_secreto():
 def clique_rapido():
     return handle_game_route(game_ctrl.clique_rapido_route, 'app/views/html/clique_rapido')
 
+# -------------------- RANKING --------------------
+@app.route('/ranking')
+def ranking_page():
+    user = ctl.current_user()
+    if not user:
+        redirect("/login")
+
+    return template("app/views/html/ranking", session=user)
+
+@app.route("/api/ranking")
+def api_ranking():
+    data = player_ctrl.get_ranking(user_ctrl)
+    response.content_type = "application/json"
+    return json.dumps(data)
+
+# -------------------- WEBSOCKET --------------------
+@app.route('/ws/ranking')
+def ws_ranking():
+    handler = ctl.get_websocket_handler(ws_manager)
+    return handler()
+
 # -------------------- RUN --------------------
+from bottle.ext.websocket import GeventWebSocketServer
+
 if __name__ == '__main__':
-    run(app, host='0.0.0.0', port=8080, debug=True)
+    run(app, host='0.0.0.0', port=8080, server=GeventWebSocketServer, debug=True)
+

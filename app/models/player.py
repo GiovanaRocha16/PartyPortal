@@ -30,3 +30,11 @@ class Player(Model):
     def add_score(self, amount):
         self.score += amount
         self.save()
+
+    def to_public_dict(self, username):
+        return {
+            "user_id": self.user_id,
+            "username": username,
+            "score": self.score
+        }
+

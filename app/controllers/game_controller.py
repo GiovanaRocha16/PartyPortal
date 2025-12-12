@@ -2,6 +2,11 @@ import random
 import time
 import json
 from app.controllers.player_controller import PlayerController
+from app.controllers.user_controller import UserController
+from app.controllers.websocket_manager import ws_manager
+
+
+user_ctrl = UserController()
 
 class GameController:
     """
@@ -98,7 +103,7 @@ class GameController:
 
         if "🤢" not in resultado and user_id:
             # premiação fixa: 5 pontos
-            self.players.add_score_by_user_id(user_id, 5)
+            self.players.add_score_by_user_id(user_id, 5, websocket_manager=ws_manager, user_ctrl=user_ctrl)
 
         return {"resultado": resultado}
 
@@ -116,7 +121,7 @@ class GameController:
             acabou = True
 
             if user_id:
-                self.players.add_score_by_user_id(user_id, 10)
+                self.players.add_score_by_user_id(user_id, 10, websocket_manager=ws_manager, user_ctrl=user_ctrl)
 
         else:
             resultado = f"✅ {len(clicados)} tentativas seguras!"
@@ -135,7 +140,7 @@ class GameController:
         slots = [random.choice(reels) for _ in range(3)]
         if slots[0] == slots[1] == slots[2]:
             if user_id:
-                self.players.add_score_by_user_id(user_id, 5)
+                self.players.add_score_by_user_id(user_id, 5, websocket_manager=ws_manager, user_ctrl=user_ctrl)
             resultado = f"🏆 Parabéns! Você ganhou: {' '.join(slots)}"
         else:
             resultado = f"😢 Tente de novo: {' '.join(slots)}"
@@ -153,7 +158,7 @@ class GameController:
              (escolha == "Papel" and bot == "Pedra"):
             resultado = "🎉 Você ganhou!"
             if user_id:
-                self.players.add_score_by_user_id(user_id, 5)
+                self.players.add_score_by_user_id(user_id, 5, websocket_manager=ws_manager, user_ctrl=user_ctrl)
         else:
             resultado = "😢 Você perdeu!"
 
@@ -184,11 +189,11 @@ class GameController:
             if soma_b > 21:
                 resultado = "🎉 O bot estourou! Você venceu!"
                 if user_id:
-                    self.players.add_score_by_user_id(user_id, 10)
+                    self.players.add_score_by_user_id(user_id, 10, websocket_manager=ws_manager, user_ctrl=user_ctrl)
             elif soma_j > soma_b:
                 resultado = "🎉 Você venceu!"
                 if user_id:
-                    self.players.add_score_by_user_id(user_id, 10)
+                    self.players.add_score_by_user_id(user_id, 10, websocket_manager=ws_manager, user_ctrl=user_ctrl)
             elif soma_j < soma_b:
                 resultado = "😢 Você perdeu!"
             else:
@@ -207,7 +212,7 @@ class GameController:
         for a,b,c in vitorias:
             if tabuleiro[a] == tabuleiro[b] == tabuleiro[c] == "X":
                 if user_id:
-                    self.players.add_score_by_user_id(user_id, 10)
+                    self.players.add_score_by_user_id(user_id, 10, websocket_manager=ws_manager, user_ctrl=user_ctrl)
                 return {"tabuleiro": tabuleiro, "mensagem": "🎉 Você venceu!"}
 
         livres = [i for i,t in enumerate(tabuleiro) if t == "-"]
@@ -232,7 +237,7 @@ class GameController:
 
         if escolha_idx == alvo_idx:
             if user_id:
-                self.players.add_score_by_user_id(user_id, 10)
+                self.players.add_score_by_user_id(user_id, 10, websocket_manager=ws_manager, user_ctrl=user_ctrl)
             return {"opcoes": opcoes, "alvo_idx": alvo_idx, "erros": erros, "mensagem": "🎉 Você encontrou o emoji escondido!", "fim": True}
 
         erros += 1
@@ -246,7 +251,7 @@ class GameController:
         tentativas += 1
         if chute == numero:
             if user_id:
-                self.players.add_score_by_user_id(user_id, 15)
+                self.players.add_score_by_user_id(user_id, 15, websocket_manager=ws_manager, user_ctrl=user_ctrl)
             return {"numero": numero, "tentativas": tentativas, "mensagem": f"🎉 Acertou! O número era {numero}.", "fim": True}
 
         if chute < numero:
@@ -272,7 +277,7 @@ class GameController:
                 total = round(time.time() - self.clicks_data["start"], 2)
                 self.clicks_data = {"count":0, "start":0}
                 if user_id:
-                    self.players.add_score_by_user_id(user_id, 15)
+                    self.players.add_score_by_user_id(user_id, 15, websocket_manager=ws_manager, user_ctrl=user_ctrl)
                 return {"tempo": total, "cliques": 0}
 
         return {"tempo": None, "cliques": self.clicks_data["count"]}
