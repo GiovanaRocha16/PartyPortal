@@ -15,7 +15,11 @@ def test_confeiteiro_route_no_form(game):
 def test_confeiteiro_known_recipe_awards(game):
     res = game.confeiteiro(user_id=7, ing1="Chocolate", ing2="Morango", ing3="Leite")
     assert "delicioso" in res["resultado"]
-    game.players.add_score_by_user_id.assert_called_once_with(7, 5)
+
+    game.players.add_score_by_user_id.assert_called_once()
+    args, kwargs = game.players.add_score_by_user_id.call_args
+    assert args[0] == 7
+    assert args[1] == 5
 
 def test_confeiteiro_bad_recipe_no_award(game):
     res = game.confeiteiro(user_id=7, ing1="Pimenta", ing2="Alho", ing3="Limão")

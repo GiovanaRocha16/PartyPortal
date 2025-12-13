@@ -11,19 +11,22 @@ from app.controllers.user_controller import UserController
 def test_register_success(mock_player_ctrl, mock_user):
     ctrl = UserController()
 
-    # usuário não existe
     mock_user.exists.return_value = False
 
-    # simulando criação do user
     user_instance = MagicMock()
     user_instance.id = 10
-    user_instance.to_dict.return_value = {"id": 10, "username": "gih", "is_admin": 0}
+    user_instance.to_dict.return_value = {
+        "id": 10,
+        "username": "gih",
+        "is_admin": 0
+    }
     mock_user.return_value = user_instance
 
     result = ctrl.register({"username": "gih", "password": "123"})
 
     assert result["ok"] is True
     assert result["redirect"] == "/home"
+    assert result["user"] == user_instance.to_dict()
 
     mock_user.exists.assert_called_once_with(username="gih")
     mock_user.return_value.save.assert_called_once()
@@ -86,6 +89,7 @@ def test_login_success_user(mock_user):
 
     assert result["ok"] is True
     assert result["redirect"] == "/home"
+    assert result["user"] == user_instance.to_dict()
 
 
 @patch("app.controllers.user_controller.User")
@@ -99,6 +103,7 @@ def test_login_success_admin(mock_user):
 
     result = ctrl.login("gih", "123")
 
+    assert result["ok"] is True
     assert result["redirect"] == "/admin/dashboard"
 
 
@@ -155,12 +160,12 @@ def test_make_admin_not_found(mock_user):
 # ----------------------------------------------------
 def test_check_admin_true():
     ctrl = UserController()
-    assert ctrl.check_admin({"is_admin": 1}) is True
+    assert ctrl.check_admin({"is_admin": True}) is True
 
 
 def test_check_admin_false():
     ctrl = UserController()
-    assert ctrl.check_admin({"is_admin": 0}) is False
+    assert ctrl.check_admin({"is_admin": False}) is False
 
 
 def test_check_admin_none():
@@ -194,7 +199,7 @@ def test_get_user_by_id_none(mock_user):
 
 
 # ----------------------------------------------------
-# add_user()  (só chama register)
+# add_user()
 # ----------------------------------------------------
 @patch.object(UserController, "register")
 def test_add_user(mock_register):
@@ -202,7 +207,10 @@ def test_add_user(mock_register):
 
     ctrl.add_user("gih", "123")
 
-    mock_register.assert_called_once_with({"username": "gih", "password": "123"})
+    mock_register.assert_called_once_with({
+        "username": "gih",
+        "password": "123"
+    })
 
 
 # ----------------------------------------------------

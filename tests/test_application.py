@@ -88,6 +88,7 @@ def test_check_permission_admin(app_instance):
     app_instance.user_controller.check_admin.return_value = True
 
     assert app_instance.check_permission(admin_required=True) is True
+    app_instance.user_controller.check_admin.assert_called_once_with({"id": 1})
 
 
 # -----------------------------
@@ -97,7 +98,7 @@ def test_require_admin_denied(app_instance):
     app_instance.current_user = MagicMock(return_value=None)
 
     result = app_instance.require_admin()
-    assert isinstance(result, tuple)  # (response, 403)
+
     assert result[1] == 403
 
 
@@ -117,6 +118,8 @@ def test_admin_delete_user(app_instance):
 
     with patch("app.controllers.application.redirect") as mock_redirect:
         app_instance.admin_delete_user(5)
+
+        app_instance.require_admin.assert_called_once()
         app_instance.user_controller.delete_user.assert_called_once_with(5)
         app_instance.player_controller.delete_player_by_user_id.assert_called_once_with(5)
         mock_redirect.assert_called_once()

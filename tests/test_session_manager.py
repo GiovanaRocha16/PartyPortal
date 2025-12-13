@@ -1,7 +1,6 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, ANY
 from app.controllers.session_manager import SessionManager
-from datetime import datetime
 
 
 # ------------------------------------------------------
@@ -17,11 +16,10 @@ def test_create_session(mock_uuid, mock_db):
     assert result == "ABC-123"
 
     mock_db.execute.assert_called_once()
-    call_args = mock_db.execute.call_args[0]
+    sql, params = mock_db.execute.call_args[0]
 
-    assert call_args[0].startswith("INSERT INTO sessions")
-    assert call_args[1][0] == "ABC-123"
-    assert call_args[1][1] == 10
+    assert sql.startswith("INSERT INTO sessions")
+    assert params == ("ABC-123", 10, ANY)
 
 
 # ------------------------------------------------------
@@ -30,8 +28,8 @@ def test_create_session(mock_uuid, mock_db):
 @patch("app.controllers.session_manager.db")
 def test_get_session_success(mock_db):
     mock_db.fetch_one.side_effect = [
-        ("ABC", 5),
-        (5, "gih", 1),
+        ("ABC", 5),        # sessão
+        (5, "gih", 1),     # usuário
     ]
 
     result = SessionManager.get_session("ABC")
